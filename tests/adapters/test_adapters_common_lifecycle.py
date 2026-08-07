@@ -148,11 +148,11 @@ def test_lifecycle_host_validates_opt_in_typed_config_before_adapter_start():
             _request("stop", {"runtime_id": runtime_id}),
         ]
     )
-    starts: list[AgentConfig] = []
+    starts: list[dict[str, Any]] = []
 
     class Runtime:
         async def start(self, payload) -> None:
-            starts.append(payload["config"])
+            starts.append(payload)
 
         async def invoke(self, _payload):
             raise AssertionError("invoke is not expected")
@@ -168,8 +168,9 @@ def test_lifecycle_host_validates_opt_in_typed_config_before_adapter_start():
     )
 
     assert len(starts) == 1
-    assert isinstance(starts[0], AgentConfig)
-    assert starts[0].harness.settings == {"profile": "typed"}
+    assert isinstance(starts[0]["config"], AgentConfig)
+    assert starts[0]["config"].harness.settings == {"profile": "typed"}
+    assert "agent_config" not in starts[0]
 
 
 def test_lifecycle_host_rejects_invalid_opt_in_config_before_runtime_creation():

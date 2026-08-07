@@ -542,6 +542,19 @@ def test_typed_tool_definition_omits_empty_settings():
     }
 
 
+@pytest.mark.parametrize("field", ["kind", "ref", "settings"])
+def test_typed_tool_definition_rejects_known_extra_field_collisions(field: str):
+    tools = ToolsConfig()
+
+    with pytest.raises(ValueError, match="extra_fields duplicates known fields"):
+        tools.add_definition(
+            "web",
+            kind="function_group",
+            ref="web_tools",
+            extra_fields={field: "replacement"},
+        )
+
+
 def test_run_plan_snapshot_removes_named_definition():
     config = _FabricConfigSnapshot.from_mapping(
         {
@@ -575,13 +588,22 @@ def test_run_plan_snapshot_remove_definition_preserves_absent_tools():
     assert "tools" not in config.to_mapping()
 
 
-def test_artifact_ref_omits_empty_metadata_and_preserves_values():
+def test_run_plan_snapshot_tool_definitions_are_stored_as_plain_mappings():
+    tools = _ToolsConfig()
+
+    tools.add_definition("web", kind="function_group", ref="web_tools")
+
+    assert isinstance(tools.definitions["web"], dict)
+
+
+def test_artifact_ref_preserves_empty_metadata_and_values():
     assert ArtifactRef.from_mapping(
         {"name": "trace", "kind": "file", "path": "trace.jsonl"}
     ).to_mapping() == {
         "name": "trace",
         "kind": "file",
         "path": "trace.jsonl",
+        "metadata": {},
     }
     assert ArtifactRef.from_mapping(
         {
@@ -826,6 +848,7 @@ def test_inspection_models_are_typed_read_only_mappings():
                 "harness": {"adapter_id": "test.fabric.shim"},
                 "runtime": {"input_schema": "chat"},
             },
+            "agent_config": {"models": {"default": {"provider": "nvidia"}}},
             "adapter_descriptor": {
                 "descriptor": {
                     "adapter_id": "test.fabric.shim",
@@ -847,6 +870,8 @@ def test_inspection_models_are_typed_read_only_mappings():
     assert isinstance(plan.adapter, AdapterInfo)
     assert isinstance(plan.capabilities, RuntimeCapabilities)
     assert plan.base_dir == Path(".")
+    assert plan.agent_config == {"models": {"default": {"provider": "nvidia"}}}
+    assert "agent_config" not in plan.extra_fields
     assert plan.adapter.harness == "hermes"
     assert "harness_type" not in plan.adapter
     assert plan.adapter.extra_fields["future"] == "value"
@@ -884,6 +909,16 @@ def test_run_plan_config_rejects_removed_profiles_and_missing_base_dir():
                 "capabilities": {},
             }
         )
+
+    invalid_plan = _plan()
+    invalid_plan["agent_config"] = []
+    with pytest.raises(FabricConfigError, match="agent_config must be a JSON object"):
+        RunPlan.from_mapping(invalid_plan)
+
+    plan = _plan()
+    del plan["agent_config"]
+    with pytest.raises(FabricConfigError, match="agent_config is required"):
+        RunPlan.from_mapping(plan)
 
 
 def test_runtime_handle_distinguishes_contract_and_extension_fields():
@@ -1001,6 +1036,7 @@ def _plan() -> dict[str, Any]:
         "agent_name": "demo",
         "base_dir": ".",
         "config": config,
+        "agent_config": {},
         "adapter_descriptor": {
             "descriptor": {
                 "adapter_kind": "python",

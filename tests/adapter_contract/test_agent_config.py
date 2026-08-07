@@ -82,6 +82,14 @@ def test_agent_config_block_accepts_typed_extensions():
     }
 
 
+def test_agent_config_block_discards_none_from_mapping_extensions():
+    config = AgentConfig().set_extensions(
+        {"workflow_type": "react_agent", "optional": None}
+    )
+
+    assert config.to_mapping() == {"extensions": {"workflow_type": "react_agent"}}
+
+
 def test_agent_config_block_omits_empty_extensions():
     assert AgentConfig().to_mapping() == {}
 

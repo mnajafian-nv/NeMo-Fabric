@@ -545,7 +545,12 @@ mod tests {
                 "resolution": "preinstalled"
             },
             "runtime": {"max_turns": 3},
-            "tools": {"enabled": []}
+            "tools": {
+                "definitions": {
+                    "calculator": {"kind": "function", "ref": "calculator"}
+                },
+                "enabled": []
+            }
         }))
         .expect("typed config");
         let base_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -568,6 +573,12 @@ mod tests {
                 && check.status == DoctorStatus::Fail
                 && check.metadata.get("field")
                     == Some(&Value::String("runtime.max_turns".to_string()))
+        }));
+        assert!(report.checks.iter().any(|check| {
+            check.name == "config.unsupported"
+                && check.status == DoctorStatus::Fail
+                && check.metadata.get("field")
+                    == Some(&Value::String("tools.definitions".to_string()))
         }));
         assert!(report.checks.iter().any(|check| {
             check.name == "capability.unsupported"

@@ -42,6 +42,7 @@ def _plan() -> dict[str, Any]:
         "agent_name": "demo",
         "base_dir": ".",
         "config": config,
+        "agent_config": {},
         "adapter_descriptor": {
             "descriptor": {
                 "adapter_id": "test.fabric.shim",

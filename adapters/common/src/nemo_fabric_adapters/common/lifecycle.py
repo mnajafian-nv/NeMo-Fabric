@@ -396,9 +396,8 @@ def serve(
 ) -> None:
     """Serve ordered lifecycle requests for exactly one Fabric runtime.
 
-    ``config_model`` opts an adapter into typed southbound configuration. The
-    host validates the start payload and passes the resulting model instance as
-    ``payload["config"]``. Omitting it preserves the legacy mapping unchanged.
+    ``config_model`` opts an adapter into typed southbound configuration and
+    passes the validated model instance in ``payload["config"]``.
     """
 
     # Reserve process stdout for the protocol for the entire host lifetime,

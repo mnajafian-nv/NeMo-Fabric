@@ -83,7 +83,7 @@ from nemo_fabric_adapters.common import lifecycle
 
 class ExampleRuntime:
     async def start(self, payload):
-        config: AgentConfig = payload["config"]
+        config: AgentConfig = payload["agent_config"]
 
     async def invoke(self, payload):
         request = payload["request"]
@@ -97,16 +97,19 @@ def main() -> None:
     lifecycle.serve(ExampleRuntime, config_model=AgentConfig)
 ```
 
-The host validates the start `config` as `AgentConfig`, serializes operations,
-normalizes lifecycle failures, reserves stdout for its protocol, and attempts
-cleanup on EOF. The adapter remains responsible for target-specific validation,
-translation, state, and shutdown.
+The host validates the start `config` as `AgentConfig`, exposes that model as
+`payload["agent_config"]`, serializes operations, normalizes lifecycle failures,
+reserves stdout for its protocol, and attempts cleanup on EOF. It retains the
+original mapping at `payload["config"]` for the shared utility accessors. The
+adapter remains responsible for target-specific validation, translation, state,
+and shutdown.
 
 The lifecycle table describes the typed adapter contract, not the Python method
 signatures. The common Python host passes one protocol payload to `start` and
-`invoke`: `payload["config"]` contains `AgentConfig` during `start`, while the
-protocol envelope carries `RuntimeContext` and runtime identity. It calls
-`stop()` after resolving the runtime identity from that envelope.
+`invoke`: during `start`, `payload["config"]` is the original wire mapping and
+`payload["agent_config"]` is the validated `AgentConfig`. The protocol envelope
+carries `RuntimeContext` and runtime identity. It calls `stop()` after resolving
+the runtime identity from that envelope.
 
 The current invoke payload contains `RuntimeContext` plus northbound
 `RunRequest`, and accepts JSON-compatible output. `AgentRunRequest` and

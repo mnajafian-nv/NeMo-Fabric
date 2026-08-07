@@ -127,3 +127,9 @@ def test_failed_agent_run_result_requires_error():
 def test_agent_artifact_rejects_unsafe_paths(path: str):
     with pytest.raises(ValidationError, match="artifact path must be"):
         AgentArtifact(name="output", kind="file", path=path)
+
+
+def test_agent_artifact_accepts_non_ascii_relative_drive_prefix():
+    artifact = AgentArtifact(name="output", kind="file", path="é:output")
+
+    assert artifact.path == "é:output"

@@ -194,6 +194,7 @@ Immutable execution plan produced before a runtime is started.
  - <b>`agent_name`</b>:  Resolved agent name.
  - <b>`base_dir`</b>:  Base directory used to resolve relative paths.
  - <b>`config`</b>:  Typed configuration snapshot.
+ - <b>`agent_config`</b>:  Typed configuration projected southbound to the adapter.
  - <b>`adapter`</b>:  Resolved adapter identity.
  - <b>`capabilities`</b>:  Operations declared by the resolved runtime.
 
@@ -208,6 +209,7 @@ The mapping exposes the following typed fields:
 | `agent_name` | `str` |
 | `base_dir` | `Path` |
 | `config` | `_FabricConfigSnapshot` |
+| `agent_config` | `Mapping[str, Any]` |
 | `adapter` | `AdapterInfo` |
 | `capabilities` | `RuntimeCapabilities` |
 

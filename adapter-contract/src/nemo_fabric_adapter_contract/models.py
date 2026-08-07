@@ -55,7 +55,8 @@ class AgentContractBlock(ContractModel):
         raw = (
             value.model_dump(mode="json", exclude_none=True)
             if isinstance(value, BaseModel)
-            else value
+            # Omit nulls so mappings match typed payload serialization.
+            else {key: item for key, item in value.items() if item is not None}
         )
         self.extensions = _EXTENSIONS_ADAPTER.validate_python(raw)
         return self
@@ -343,7 +344,9 @@ class AgentArtifact(AgentContractBlock):
         raw = str(value)
         path = Path(raw)
         components = raw.replace("\\", "/").split("/")
-        windows_drive_path = len(raw) >= 2 and raw[0].isalpha() and raw[1] == ":"
+        windows_drive_path = (
+            len(raw) >= 2 and raw[0].isascii() and raw[0].isalpha() and raw[1] == ":"
+        )
         if (
             not raw
             or path.is_absolute()

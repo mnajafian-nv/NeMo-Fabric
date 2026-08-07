@@ -672,7 +672,7 @@ class _ToolsConfig(_ConfigMapping):
                 extra_fields=extra_fields,
             )
         )
-        self["definitions"] = definitions
+        self.definitions = definitions
         return self
 
     def remove_definition(self, name: str) -> _ToolsConfig:
@@ -1104,11 +1104,8 @@ class _FabricConfigSnapshot(_ConfigMapping):
     def remove_tool_definition(self, name: str) -> _FabricConfigSnapshot:
         """Remove one named tool definition and return this config."""
 
-        tools = self.get("tools")
-        if tools is not None:
-            if not isinstance(tools, _ToolsConfig):
-                raise FabricConfigError("tools must be a _ToolsConfig")
-            tools.remove_definition(name)
+        if "tools" in self:
+            self.tools.remove_definition(name)
         return self
 
     def enable_relay(
@@ -1313,6 +1310,7 @@ class RunPlan(FabricMapping):
         agent_name: Resolved agent name.
         base_dir: Base directory used to resolve relative paths.
         config: Typed configuration snapshot.
+        agent_config: Typed configuration projected southbound to the adapter.
         adapter: Resolved adapter identity.
         capabilities: Operations declared by the resolved runtime.
     """
@@ -1320,9 +1318,13 @@ class RunPlan(FabricMapping):
     agent_name: str
     base_dir: Path
     config: _FabricConfigSnapshot
+    agent_config: Mapping[str, Any]
     adapter: AdapterInfo
     capabilities: RuntimeCapabilities
-    _fields = frozenset({"agent_name", "base_dir", "config", "adapter", "capabilities"})
+    _fields = frozenset(
+        {"agent_name", "base_dir", "config", "agent_config", "adapter", "capabilities"}
+    )
+    _json_fields = frozenset({"agent_config"})
 
     @classmethod
     def _normalize(cls, data: dict[str, Any]) -> dict[str, Any]:
@@ -1333,6 +1335,9 @@ class RunPlan(FabricMapping):
             raise FabricConfigError("RunPlan base_dir is required")
         data["base_dir"] = Path(data["base_dir"])
         data["config"] = _FabricConfigSnapshot.from_mapping(data.get("config", {}))
+        if "agent_config" not in data:
+            raise FabricConfigError("RunPlan agent_config is required")
+        data["agent_config"] = _mapping(data["agent_config"], "agent_config")
         data["adapter"] = AdapterInfo.from_mapping(descriptor)
         data["capabilities"] = RuntimeCapabilities.from_mapping(data.get("capabilities", {}))
         return data
@@ -1424,7 +1429,6 @@ class ArtifactRef(FabricMapping):
     metadata: Mapping[str, Any]
     _fields = frozenset({"name", "kind", "path", "media_type", "metadata"})
     _json_fields = frozenset({"metadata"})
-    _omit_if_empty = frozenset({"metadata"})
 
     @classmethod
     def _normalize(cls, data: dict[str, Any]) -> dict[str, Any]:

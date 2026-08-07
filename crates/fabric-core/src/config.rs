@@ -1455,9 +1455,9 @@ fn resolve_run_plan(
         .map(|adapter| &adapter.descriptor);
     if enforce_compatibility {
         validate_adapter_config_compatibility(&config, descriptor)?;
+        validate_tool_definitions(&config, adapter_descriptor.as_ref())?;
+        validate_agent_config_extensions(&config, adapter_descriptor.as_ref())?;
     }
-    validate_tool_definitions(&config, adapter_descriptor.as_ref())?;
-    validate_agent_config_extensions(&config, adapter_descriptor.as_ref())?;
     let resolution = resolve_resolution(&config, descriptor)?;
     let environment_plan = resolve_environment_plan(&config, &base_dir);
     validate_control_location(descriptor, environment_plan.as_ref())?;

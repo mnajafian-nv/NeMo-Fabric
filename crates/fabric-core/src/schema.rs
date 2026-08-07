@@ -356,7 +356,6 @@ mod tests {
             config["$defs"]["AgentRuntimeConfig"]["properties"]["max_turns"]["maximum"],
             u32::MAX
         );
-
         let result = generate_schema(SchemaName::AgentRunResult).expect("schema generation");
         for field in ["input_tokens", "output_tokens", "total_tokens"] {
             assert_eq!(
@@ -379,6 +378,11 @@ mod tests {
             "status": "succeeded",
             "output": null,
             "error": {"code": "target_error", "message": "target failed"}
+        })));
+        assert!(validator.is_valid(&serde_json::json!({
+            "status": "succeeded",
+            "output": null,
+            "error": null
         })));
         for path in [
             "nested/../output",

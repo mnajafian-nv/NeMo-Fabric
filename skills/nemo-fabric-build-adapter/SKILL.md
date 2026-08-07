@@ -119,7 +119,7 @@ from nemo_fabric_adapters.common import lifecycle
 
 class TargetRuntime:
     async def start(self, payload):
-        config: AgentConfig = payload["config"]
+        config: AgentConfig = payload["agent_config"]
         ...
 
     async def invoke(self, payload):
@@ -137,6 +137,9 @@ Keep current host request/result conversion in dedicated functions. The
 published `AgentRunRequest` and `AgentRunResult` types are preview-only and are
 not part of the negotiated contract. Do not return `AgentRunResult` from the
 current local host: it is treated as ordinary JSON, including `status: failed`.
+When using `config_model`, read the typed model from `payload["agent_config"]`.
+The host keeps `payload["config"]` as its original mapping so existing shared
+utility accessors remain usable.
 
 ## Handle Custom Agents
 
