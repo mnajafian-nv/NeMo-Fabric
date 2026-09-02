@@ -81,6 +81,11 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+Omit `instructions.system` to preserve the harness's native system instruction.
+When present, `InstructionConfig.mode` defaults to `replace`. Use `append` only
+with an adapter whose descriptor advertises that mode; planning rejects other
+combinations before the runtime starts.
+
 Use `base_dir` to resolve relative paths in an in-memory config. Before running
 in a new environment, call `plan(...)` to inspect adapter selection and
 `doctor(...)` to check runtime requirements.
@@ -115,7 +120,7 @@ Most application code works with four objects:
 | `FabricConfig` | Typed configuration for the harness, models, runtime, and capabilities. | Construct it from application config before planning or running. |
 | `RunPlan` | The canonical config and path context, selected adapter, and declared capabilities. | Inspect it before starting work when adapter selection or feature support matters. |
 | `Runtime` | The Python object for one logical, stateful harness execution. | Use it to send ordered invocations and stop the execution. Use it as an async context manager for cleanup. |
-| `RunResult` | The normalized outcome of one invocation. | Read its status, output, error, events, artifacts, and correlation IDs. |
+| `RunResult` | The normalized outcome of one invocation. | Read its status, output, error, usage, events, artifacts, and correlation IDs. |
 
 `Fabric` is a lightweight, reusable SDK facade. It resolves configuration,
 creates plans and runtimes, and provides a single-invocation convenience API,
@@ -168,38 +173,38 @@ planning instead of being ignored. The following table groups provider-specific
 Relay subfields and additive extension maps because their support does not vary
 by adapter:
 
-| `FabricConfig` Field | Claude | Codex | Deep Agents | Hermes Agent |
-| --- | --- | --- | --- | --- |
-| `schema_version` | Core | Core | Core | Core |
-| `metadata.name`, `.description` | Core | Core | Core | Core |
-| `harness.adapter_id`, `.resolution` | Core | Core | Core | Core |
-| `harness.settings` | Closed adapter schema | Closed adapter schema | Closed adapter schema | Closed adapter schema |
-| `workflow.entrypoint`, `.settings` | No | No | No | No |
-| `models.<role>.provider` | `anthropic` uses native auth; custom names require an Anthropic Messages-compatible `base_url` and `api_key_env` | `openai` uses native auth; custom names require a Responses-compatible `base_url` and `api_key_env` | Dynamic LangChain provider; custom OpenAI-compatible endpoints require `base_url` and `api_key_env` | Dynamic Hermes provider |
-| `models.<role>.model` | Yes | Yes | Yes | Yes |
-| `models.<role>.api_key_env` | Yes | Yes | Yes | Yes |
-| `models.<role>.base_url` | Yes | Yes | Yes | Yes |
-| `models.<role>.temperature` | No | No | Yes | Yes |
-| `models.<role>.settings.<key>` | No keys declared | No keys declared | No keys declared | No keys declared |
-| `instructions.system` | Yes | Yes; maps to Codex base instructions | Yes | Yes |
-| `runtime.input_schema`, `.output_schema` | Core | Core | Core | Core |
-| `runtime.artifacts`, `.timeout_seconds` | Core | Core | Core | Core |
-| `runtime.max_turns` | Yes | No | No | Yes; maps to Hermes iterations |
-| `environment.provider`, `.control_location`, `.ownership` | Core | Core | Core | Core |
-| `environment.workspace`, `.artifacts`, `.env` | Core | Core | Core | Core |
-| `environment.connection`, `.metadata`, `.settings` | Environment-provider-owned | Environment-provider-owned | Environment-provider-owned | Environment-provider-owned |
-| `tools.definitions` | No | No | No | No |
-| `tools.enabled`, `.blocked` | Yes | No | Yes | Yes; native selectors are Hermes toolset names |
-| `skills.paths` | Yes | Yes | Yes | Yes |
-| `mcp.servers.<name>.transport`, `.url` with `harness_native` exposure | Yes | Yes | Yes | Yes |
-| `mcp.servers.<name>.allowed_tools`, `.blocked_tools` | No | No | No | No |
-| `mcp.servers.<name>.exposure = "fabric_managed"` | No; not implemented | No; not implemented | No; not implemented | No; not implemented |
-| `telemetry.providers.relay` | Yes | Yes | Yes | Yes |
-| `telemetry.providers.native` | No | Yes; OpenTelemetry | Yes; OpenTelemetry and OpenInference | No |
-| `telemetry.providers.<provider>.config` | Declared-provider pass-through | Declared-provider pass-through | Declared-provider pass-through | Declared-provider pass-through |
-| `relay.project`, `.output_dir`, `.observability` | Yes | Yes | Yes | Yes |
-| `relay.components`, `.policy` | Yes | Yes | Yes | Yes |
-| Additive `extensions` on typed config objects | Preserved; no portable adapter semantics | Preserved; no portable adapter semantics | Preserved; no portable adapter semantics | Preserved; no portable adapter semantics |
+| `FabricConfig` Field | Claude | Codex | Deep Agents | Hermes Agent | mini-SWE-agent |
+| --- | --- | --- | --- | --- | --- |
+| `schema_version` | Core | Core | Core | Core | Core |
+| `metadata.name`, `.description` | Core | Core | Core | Core | Core |
+| `harness.adapter_id`, `.resolution` | Core | Core | Core | Core | Core |
+| `harness.settings` | Closed adapter schema | Closed adapter schema | Closed adapter schema | Closed adapter schema | Closed `timeout` schema |
+| `workflow.target_id`, `.settings` | No | No | No | No | No |
+| `models.<role>.provider` | `anthropic` uses native auth; custom names require an Anthropic Messages-compatible `base_url` and `api_key_env` | `openai` uses native auth; custom names require a Responses-compatible `base_url` and `api_key_env` | Dynamic LangChain provider; custom OpenAI-compatible endpoints require `base_url` and `api_key_env` | Dynamic Hermes provider | Configured provider |
+| `models.<role>.model` | Yes | Yes | Yes | Yes | Yes |
+| `models.<role>.api_key_env` | Yes | Yes | Yes | Yes | Yes |
+| `models.<role>.base_url` | Yes | Yes | Yes | Yes | Yes |
+| `models.<role>.temperature` | No | No | Yes | Yes | Yes |
+| `models.<role>.settings.<key>` | No keys declared | No keys declared | No keys declared | No keys declared | No keys declared |
+| `instructions.system` | `replace`, `append` | `replace`; maps to Codex base instructions | `replace` | `replace` | `replace` |
+| `runtime.input_schema`, `.output_schema` | Core | Core | Core | Core | Core |
+| `runtime.artifacts`, `.timeout_seconds` | Core | Core | Core | Core | Core |
+| `runtime.max_turns` | Yes | No | No | Yes; maps to Hermes iterations | Yes |
+| `environment.provider`, `.control_location`, `.ownership` | Core | Core | Core | Core | Core |
+| `environment.workspace`, `.artifacts`, `.env` | Core | Core | Core | Core | Core |
+| `environment.connection`, `.metadata`, `.settings` | Environment-provider-owned | Environment-provider-owned | Environment-provider-owned | Environment-provider-owned | Environment-provider-owned |
+| `tools.definitions` | No | No | No | No | No |
+| `tools.enabled`, `.blocked` | Yes | No | Yes | Yes; native selectors are Hermes toolset names | No |
+| `skills.paths` | Yes | Yes | Yes | Yes | No |
+| `mcp.servers.<name>.transport`, `.url` with `harness_native` exposure | Yes | Yes | Yes | Yes | No |
+| `mcp.servers.<name>.allowed_tools`, `.blocked_tools` | No | No | No | No | No |
+| `mcp.servers.<name>.exposure = "fabric_managed"` | No; not implemented | No; not implemented | No; not implemented | No; not implemented | No |
+| `telemetry.providers.relay` | Yes | Yes | Yes | Yes | Yes |
+| `telemetry.providers.native` | No | Yes; OpenTelemetry | Yes; OpenTelemetry and OpenInference | No | No |
+| `telemetry.providers.<provider>.config` | Declared-provider pass-through | Declared-provider pass-through | Declared-provider pass-through | Declared-provider pass-through | Declared-provider pass-through |
+| `relay.project`, `.output_dir`, `.observability` | Yes | Yes | Yes | Yes | Yes |
+| `relay.components`, `.policy` | Yes | Yes | Yes | Yes | Yes |
+| Additive `extensions` on typed config objects | Preserved; no portable adapter semantics | Preserved; no portable adapter semantics | Preserved; no portable adapter semantics | Preserved; no portable adapter semantics | Preserved; no portable adapter semantics |
 
 Model selection is deterministic: the `default` role wins; otherwise a single
 named role is selected. More than one role without `default` fails planning.
@@ -238,6 +243,75 @@ capability_config.enable_relay(
 )
 ```
 
+### Configure MCP Authentication And Headers
+
+MCP authentication and custom-header support vary by adapter:
+
+| Adapter | OAuth 2.0 Authentication | HTTP `custom_headers` |
+| --- | --- | --- |
+| Claude | Unsupported | Supported |
+| Codex | Supported | Supported |
+| Deep Agents | Unsupported | Supported |
+| Hermes Agent | Supported | Supported |
+
+Claude and Deep Agents return a configuration error when `authentication` is
+set. The bundled adapters do not support `service_account` MCP authentication.
+
+Configure OAuth 2.0 with `McpAuthenticationConfig`. The adapter and MCP server
+complete the authorization flow before the first agent turn. The flow can
+require interactive browser authorization.
+
+```python
+from nemo_fabric import McpAuthenticationConfig
+
+capability_config.add_mcp_server(
+    "github",
+    transport="streamable-http",
+    url="https://mcp.example.com/mcp",
+    authentication=McpAuthenticationConfig(
+        type="oauth2",
+        scopes=["repo:read"],
+    ),
+    exposure="harness_native",
+)
+```
+
+Use `custom_headers` to send HTTP headers with an `sse` or `streamable-http`
+server. Header names and values must be valid HTTP header text. To provide a
+sensitive value, set it in the process environment and use a `${NAME}`
+reference in the header value:
+
+```python
+import getpass
+import os
+
+os.environ["MCP_ACCESS_TOKEN"] = getpass.getpass("MCP access token: ")
+
+capability_config.add_mcp_server(
+    "private-api",
+    transport="streamable-http",
+    url="https://mcp.example.com/mcp",
+    authentication=None,
+    custom_headers={
+        "Authorization": "Bearer ${MCP_ACCESS_TOKEN}",
+        "X-Tenant": "example-team",
+    },
+)
+```
+
+Set referenced environment variables before calling `run(...)` or
+`start_runtime(...)`. Do not use `McpServerConfig.env` for HTTP header
+variables; `env` applies only to `stdio` MCP server processes.
+
+<Warning>
+  The Claude adapter stages its MCP configuration in a file for the Claude SDK.
+  A sensitive value in `custom_headers` can therefore be written to
+  disk. Store sensitive values in environment variables and use `${NAME}` in
+  `custom_headers`. The adapter stages the reference and supplies the value
+  through the scoped child-process environment instead of writing the value to
+  the MCP configuration file.
+</Warning>
+
 MCP tool policy is scoped to one server and uses the tool names that server
 advertises. `allowed_tools=None` exposes every discovered tool, while an empty
 allowlist exposes none. `blocked_tools` is then removed from the allowed or
@@ -258,6 +332,8 @@ An adapter must declare both `mcp` and `mcp.tool_filters` support before
 planning accepts these fields. The bundled adapters currently support
 unfiltered MCP servers only. Per-server MCP policy is distinct from the root
 `ToolsConfig`, which controls adapter-native tools across the harness.
+An MCP server requiring authentication also requires `mcp.auth.oauth2` or
+`mcp.auth.service_account`, matching its configured authentication type.
 
 `tools.definitions` names tools and tool groups that the adapter constructs.
 Each definition has a portable `kind`, an adapter-resolved `ref`, and settings
@@ -312,7 +388,7 @@ variant = review_agent_config(config, github_mcp=True, relay=True)
 ```
 
 NeMo Relay observability is represented directly in the SDK config's top-level
-`relay` block. ATOF uses NeMo Relay 0.6 file and stream sinks:
+`relay` block. Configure ATOF file and stream sinks as follows:
 
 ```python
 from nemo_fabric import (
@@ -371,8 +447,9 @@ The following table summarizes the SDK entry points and runtime methods:
 | `Fabric.plan(config, base_dir=...)` | No | You need to inspect the selected adapter, capability mapping, and runtime capabilities before running. | Does not start a runtime. |
 | `Fabric.doctor(config, *, base_dir=...)` | Yes | You need preflight diagnostics for adapter resolution, capability routing, declared requirements, and environment assumptions. | Checks can inspect local binaries, environment variables, and files without starting a runtime. |
 | `Fabric.run(config, base_dir=..., input=...)` | Yes | You need one complete start, invoke, result, stop lifecycle. | `base_dir` is optional. Pass a `RunRequest` instead when the invocation needs IDs, context, or overrides. |
-| `Fabric.start_runtime(config, ..., streaming=False)` | Yes | You need state across multiple ordered invocations. | Returns a `Runtime`. Use `streaming=True` with NeMo Relay enabled to provision streaming. |
+| `Fabric.start_runtime(config, ..., streaming=False)` | Yes | You need state across multiple ordered invocations. | Returns a `Runtime`. Use `streaming=True` with NeMo Relay enabled only to provision Relay ATOF streaming. |
 | `Runtime.invoke(...)` | Yes | You need one turn on an existing runtime. | A runtime permits one active invocation at a time. |
+| `Runtime.invoke_openai_stream(...)` | No | You need adapter-native OpenAI Chat Completions chunks for one turn. | Requires descriptor `capabilities.streaming`. Returns an async `OpenAIInvokeStream`; await `stream.result()` for the separate terminal `RunResult`. |
 | `Runtime.invoke_stream(...)` | No | You need live ATOF records generated by NeMo Relay for one turn. | Returns an async `InvokeStream`; await `stream.result()` for the terminal `RunResult`. |
 | `Runtime.stop()` | Yes | You need to stop or detach from the runtime. | Called automatically when using `async with`. |
 
@@ -436,15 +513,62 @@ on one live thread, Deep Agents invokes one compiled graph and checkpointer,
 Hermes Agent reuses one agent and session database, and Claude keeps one connected SDK
 client. Harness-native identifiers remain adapter-internal.
 
+## Native OpenAI Streaming
+
+Use `Runtime.invoke_openai_stream()` when the selected adapter provides native
+OpenAI Chat Completions chunks. `Runtime.supports_openai_streaming` reflects the
+selected descriptor's existing `capabilities.streaming` claim. If the claim is
+false, `invoke_openai_stream()` raises `FabricCapabilityError` with code
+`openai_streaming_unavailable`.
+
+```python
+from nemo_fabric import Fabric
+
+async with await Fabric().start_runtime(config) as runtime:
+    if not runtime.supports_openai_streaming:
+        raise RuntimeError("the selected adapter does not support OpenAI streaming")
+
+    stream = runtime.invoke_openai_stream(input="Review the latest patch")
+    async for chunk in stream:
+        print(chunk)
+
+    result = await stream.result()
+    print(result.status, result.output)
+```
+
+`invoke_openai_stream(...)` is synchronous and starts exactly one adapter
+invocation in the background. Its `OpenAIInvokeStream` yields only JSON mappings
+whose `object` field is `chat.completion.chunk`. An empty stream is valid. The
+terminal normalized `RunResult` is not a final chunk; obtain it separately with
+`await stream.result()` and treat it as authoritative.
+
+Only one turn can be active on a runtime. Fully consume the stream before
+starting another turn. If iteration stops early, call `await stream.aclose()`;
+it drains the invocation and discards unread chunks so the runtime can be reused.
+It does not cancel the target invocation. Awaiting `stream.result()` also drains
+and discards any unread chunks before it returns, so consume the iterator first
+when the application needs every chunk.
+
+The SDK owns an authenticated listener on the loopback interface and supplies
+the adapter host with a single-invocation HTTP sink that uses chunked NDJSON
+framing. It validates chunk shape, framing, authentication, and invocation
+correlation. This transport is an implementation detail; consumers provide no
+listener address, token, or protocol configuration.
+
+Native OpenAI streaming does not require NeMo Relay or
+`start_runtime(..., streaming=True)`. It is independent of Relay ATOF streaming:
+`supports_openai_streaming` and `invoke_openai_stream()` describe adapter-native
+OpenAI chunks, while `supports_streaming` and `invoke_stream()` describe Relay
+ATOF. Enabling one does not enable or change the other.
+
 ## NeMo Relay Streaming
 
 Enable NeMo Relay before starting a runtime to consume raw ATOF records while a
 turn runs. `Runtime.supports_streaming` reports whether this NeMo Relay path is
 available. It is separate from `RuntimeCapabilities.streaming`, which describes
 adapter-native progressive output. This separation is intentional:
-`Runtime.invoke_stream()` exposes only ATOF records generated by NeMo Relay. A future
-normalized NeMo Fabric streaming contract will address adapter-native progressive
-output, such as Codex app-server message and item deltas.
+`Runtime.invoke_stream()` exposes only ATOF records generated by NeMo Relay; it
+does not call the adapter's native OpenAI stream operation.
 
 The following example streams one invocation and collects its terminal result:
 
@@ -541,11 +665,10 @@ Streaming has the following v0.1 constraints:
   `stream.result()` still receives the terminal result and does not run this
   warning check.
 
-Claude and Codex streaming use the NeMo Relay `nemo-relay` gateway CLI and require a
-stream-sink-capable release from `0.6.0` up to, but not including, `0.7.0`. Follow
-the [NeMo Relay CLI installation instructions](../getting-started/install.mdx#install-nemo-relay)
-to provision it. Hermes Agent and Deep Agents use their in-process NeMo Relay
-integrations.
+Claude and Codex streaming use the NeMo Relay `nemo-relay` gateway CLI and
+require a release in the `>=0.7.2,<0.8` range. Their adapter `harness` and
+`full` extras install the supported CLI. Hermes Agent and Deep Agents use their
+in-process NeMo Relay integrations.
 
 ## Application-Owned Parallelism
 
@@ -598,6 +721,7 @@ Important fields:
 | `status` | Terminal invocation status such as success, failure, or cancellation. |
 | `output` | Harness output normalized to the configured output schema. |
 | `error` | Structured failure metadata when available. |
+| `usage` | Optional `RunUsage` with input, output, and total token counts, estimated cost in USD, and provider metadata. |
 | `artifacts` | Output files, logs, patches, native artifacts, and other materialized references. |
 | `telemetry` | References to NeMo Relay or other telemetry streams produced by the run. |
 | `events` | Ordered normalized lifecycle and invocation events. |
@@ -611,6 +735,17 @@ request. NeMo Fabric-generated values use type-specific prefixes such as `runtim
 `invocation-`, and `request-`; callers may provide their own `request_id`.
 Consumers should store and log each field separately and otherwise treat its
 value as opaque rather than parsing the identifier encoding.
+
+Usage is absent when the target does not report it. Read the typed values only
+when `usage` is available:
+
+```python
+if result.usage is not None:
+    print(result.usage.input_tokens)
+    print(result.usage.output_tokens)
+    print(result.usage.total_tokens)
+    print(result.usage.cost_usd)
+```
 
 If NeMo Fabric cannot resolve config, start a runtime, or obtain a normalized result,
 the SDK raises a `FabricError` subclass instead of returning a partial
@@ -693,14 +828,13 @@ Executable paths, Relay command discovery, state directories, and similar
 launch mechanics are runtime implementation details rather than public adapter
 settings.
 
-Use the optional `workflow` block to select an adapter-owned executable and
-provide its immutable construction settings. `workflow.entrypoint.kind`
-identifies the adapter-defined resolution mechanism, and
-`workflow.entrypoint.ref` identifies the concrete workflow. The selected
-adapter's `workflow_schema` validates the complete block during planning and
-again before runtime startup. A configured workflow fails when the descriptor
-does not declare this schema. A schema can require `workflow` or accept `null`
-when the adapter provides a default. Validation does not apply schema defaults.
+Use the optional `workflow` block to select a registered target by `target_id`
+and provide its immutable construction settings. The Adapter Target Descriptor
+selects the adapter, supplies the target-native entry point, and validates
+`workflow.settings` during planning. Fabric then projects the entry point and
+settings into `AgentConfig.workflow`; consumer configuration does not repeat
+adapter-specific entry-point semantics. Validation does not apply schema
+defaults.
 
 Use `FabricConfig.metadata` for human-readable agent identity and caller-owned
 annotations. NeMo Fabric preserves these values in the resolved configuration
@@ -749,12 +883,12 @@ generated API reference for exact Python signatures.
 | Contract | Source |
 | --- | --- |
 | SDK Pydantic models | `nemo_fabric.models`; refer to the generated [Models reference](../reference/api/python-library-reference/nemo_fabric.models.md) |
-| Agent config | `schemas/agent.schema.json` |
+| Agent config | `schemas/sdk/agent.schema.json` |
 | Adapter contract | `schemas/adapter-contract/`, including the descriptor, `AgentConfig`, execution types, and runtime context |
-| Run plan | `schemas/run-plan.schema.json` |
-| Request, result, and events | `schemas/run-request.schema.json`, `schemas/run-result.schema.json`, `schemas/fabric-event.schema.json` |
-| Runtime and invocation handles | `schemas/runtime-handle.schema.json`, `schemas/invocation-handle.schema.json` |
-| Artifacts and errors | `schemas/artifact-manifest.schema.json`, `schemas/error-info.schema.json` |
+| Run plan | `schemas/sdk/run-plan.schema.json` |
+| Request, result, and events | `schemas/sdk/run-request.schema.json`, `schemas/sdk/run-result.schema.json`, `schemas/sdk/fabric-event.schema.json` |
+| Runtime and invocation handles | `schemas/sdk/runtime-handle.schema.json`, `schemas/sdk/invocation-handle.schema.json` |
+| Artifacts and errors | `schemas/sdk/artifact-manifest.schema.json`, `schemas/sdk/error-info.schema.json` |
 
 ### Versioning
 
@@ -763,8 +897,8 @@ maintained artifacts cross package boundaries:
 
 - `schema_version` identifies the typed NeMo Fabric config contract transported
   across SDK and language boundaries.
-- `contract_version` identifies the adapter descriptor contract implemented by
-  a `fabric-adapter.json` file.
+- `contract_version` identifies the contract implemented by
+  `*.fabric-adapter.json` and `*.fabric-target.json` records.
 - Python and Rust package versions identify the installed SDK/core release.
 
 NeMo Fabric versions top-level typed contracts and independently maintained adapter

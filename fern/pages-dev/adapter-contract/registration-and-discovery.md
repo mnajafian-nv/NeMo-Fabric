@@ -3,102 +3,151 @@ SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All
 SPDX-License-Identifier: Apache-2.0
 */}
 
-# Registration and Discovery
+# Stage 5: Register and Discover the Adapter
 
-NVIDIA NeMo Fabric registration makes descriptor metadata discoverable without
-importing or executing adapter code. Adapter implementation loading occurs only
-after descriptor resolution and validation, when the runtime starts.
+Registration makes descriptor metadata available to NVIDIA NeMo Fabric.
+Discovery reads that metadata without importing adapter code, installing
+dependencies, or starting a runtime. Runtime loading begins only after
+selection and planning succeed.
 
-> **Contract status:** Registration and discovery will receive another design
-> pass in a follow-up PR, including separating static adapter metadata from
-> dynamically generated workflow-settings schemas.
+| Integration | Selected By | Required Records |
+| --- | --- | --- |
+| Harness or dedicated custom-agent adapter | `harness.adapter_id` | Adapter Descriptor only |
+| Custom agent using a shared framework adapter | `workflow.target_id` | Adapter Target Descriptor plus the selected Adapter Descriptor |
 
-## Package Layout
+Register an Adapter Target only when multiple independently installed targets
+share one adapter. A harness or dedicated custom-agent adapter is already
+identified by its Adapter Descriptor and does not publish a separate target
+record.
 
-A publishable Python adapter normally contains:
+## Publish Package Records
+
+An adapter package publishes one `*.fabric-adapter.json` record. A package that
+installs registered targets publishes one `*.fabric-target.json` record per
+target. A shared adapter and its target packages can be distributed
+independently.
 
 ```text
-acme-fabric-adapter/
-├── pyproject.toml
-├── fabric-adapter.json
-└── src/
-    └── acme_fabric_adapter/
-        ├── __init__.py
-        └── adapter.py
+acme-fabric-package/
+├── acme.fabric-adapter.json
+├── email-phishing.fabric-target.json
+└── src/acme_fabric_adapter/
 ```
 
-Install the descriptor into the shared data directory with package metadata:
+Python wheels install records below the common data root. Directory names are
+organizational; descriptor IDs are authoritative:
 
 ```toml
 [tool.setuptools.data-files]
-"share/nemo-fabric/adapters/acme" = ["fabric-adapter.json"]
+"share/nemo-fabric/adapters/acme" = ["acme.fabric-adapter.json"]
+"share/nemo-fabric/targets/acme" = ["email-phishing.fabric-target.json"]
 ```
 
-The adapter distribution owns adapter code and adapter-target runtime
-dependencies. A bare adapter need not install the NeMo Fabric runtime. Python
-adapters that use typed southbound configuration depend on
-`nemo-fabric-adapter-contract`; depend on
-`nemo-fabric-adapters-common` only when using its optional lifecycle or Relay
-helpers.
+An adapter that consumes typed southbound configuration depends on
+`nemo-fabric-adapter-contract`. Add
+`nemo-fabric-adapters-common` only when the adapter uses its optional lifecycle
+or Relay helpers. A bare adapter package does not need the NeMo Fabric runtime
+as a dependency.
 
-## Current Discovery Order
+## Understand Discovery Order
 
-Until a provider-backed registry is introduced, the Python SDK scans these
-locations. Later locations take precedence:
+NeMo Fabric builds one registry from these sources in deterministic order:
 
-1. Descriptors bundled in the NeMo Fabric source repository.
-2. `<sysconfig data>/share/nemo-fabric/adapters` from `ADAPTER_PYTHON` when set,
-   otherwise from the current Python environment.
-3. `<base_dir>/adapters` for agent-local and development overrides.
+1. Descriptor records bundled with NeMo Fabric.
+2. Records installed recursively below
+   `<sysconfig data>/share/nemo-fabric`. When `ADAPTER_PYTHON` is set, NeMo
+   Fabric queries that Python environment instead of the current one.
+3. Files or directories listed in `FabricConfig.discovery.local_paths`.
+   Relative paths resolve from `base_dir`.
 
-The selected descriptor is atomic: runner metadata and schemas are never
-merged across sources. Current discovery uses replacement precedence for a
-duplicate adapter ID; treat duplicates as an intentional override and inspect
-`RunPlan.adapter_descriptor` to confirm the winning source and path.
+The order above controls discovery, not precedence. There is no implicit
+`<base_dir>/adapters` scan and no local override rule.
 
-NeMo Fabric resolves multi-component relative `ADAPTER_PYTHON` paths from
-`base_dir` and bare command names through `PATH`.
+Semantically identical records with the same ID are deduplicated and retain
+all provenance. Different records with the same ID are ambiguous and fail
+planning. Explicit paths that do not exist, files with an unrecognized suffix,
+and malformed records fail when selection depends on them.
 
-## Resolution Stages
+The v1alpha2 registry resolves adapters and targets by exact ID. It does not
+provide a human-facing catalog or presentation metadata.
 
-NeMo Fabric resolves an adapter in these stages:
+## Use Explicit Paths During Development
 
-1. Scan descriptor metadata without executing adapter code.
-2. Select the complete descriptor for `harness.adapter_id`.
-3. Validate descriptor shape, contract version, and embedded schemas.
-4. Validate the effective config and declared requirements.
-5. Load the runner only when the runtime starts.
-
-Registration does not imply installation, trust, or conformance. Local and
-preinstalled adapters work without a central registry. An installation policy,
-when supported, is selected explicitly through `HarnessConfig.resolution`.
-
-## Verify Discovery
-
-Create a minimal `FabricConfig` that selects the adapter and call `plan` before
-starting it:
+Bundled and installed descriptors require no discovery configuration. Point to
+local files or directories only for source examples and adapter development:
 
 ```python
-from pathlib import Path
-
-from nemo_fabric import Fabric
-from nemo_fabric import FabricConfig
-from nemo_fabric import HarnessConfig
-from nemo_fabric import MetadataConfig
-
-project_root = Path.cwd()
-config = FabricConfig(
-    metadata=MetadataConfig(name="discovery-check"),
-    harness=HarnessConfig(adapter_id="nvidia.fabric.hermes"),
+FabricConfig(
+    discovery=DiscoveryConfig(
+        local_paths=[
+            "./adapter-metadata/acme.fabric-adapter.json",
+            "./targets/email-phishing.fabric-target.json",
+        ]
+    ),
+    workflow=WorkflowConfig(
+        target_id="com.acme.email-phishing",
+        settings={"llm_name": "default"},
+    ),
 )
-plan = Fabric().plan(config, base_dir=project_root)
-print(plan["adapter_descriptor"]["path"])
-print(plan["adapter_descriptor"]["descriptor"]["adapter_id"])
 ```
 
-Confirm the adapter ID, descriptor location, `config.input`, accepted fields,
-schemas, and resolved capabilities. Then run `doctor(...)` in the target
-environment to validate declared requirements.
+Pass the directory that owns these relative paths as `base_dir` when planning
+or starting the runtime.
 
-See [Adapter Descriptor](adapter-descriptor.md) for descriptor fields and
-[Conformance](conformance.md) for the release checklist.
+## Select a Harness Adapter Directly
+
+A harness or dedicated custom-agent adapter is selected directly by
+`harness.adapter_id`:
+
+```python
+FabricConfig(
+    harness=HarnessConfig(
+        adapter_id="com.acme.fabric.example",
+    ),
+)
+```
+
+The selected Adapter Descriptor supplies the runtime binding, supported
+configuration, schemas, capabilities, requirements, and telemetry claims.
+
+## Select a Registered Target
+
+A shared framework target is selected by `workflow.target_id`:
+
+```python
+FabricConfig(
+    workflow=WorkflowConfig(
+        target_id="nvidia.examples.nat.email-phishing-analyzer",
+        settings={"llm_name": "default"},
+    ),
+    models={"default": ModelConfig(...)},
+)
+```
+
+The selected Adapter Target Descriptor supplies `adapter_id`, the
+adapter-scoped workflow entry point, and the workflow settings schema. The
+consumer does not repeat the entry point or need to know the shared adapter ID.
+
+`harness` can also be present when adapter-wide settings are required. In that
+case `harness.adapter_id` must match the adapter selected by the target.
+
+## Follow Planning Order
+
+Planning performs these steps before target code starts:
+
+1. Discover and validate descriptor records.
+2. Resolve `workflow.target_id` when present.
+3. Select the target's adapter, or select `harness.adapter_id` for direct use.
+4. Cross-check an optional dual selector and the adapter's supported target
+   type.
+5. Validate harness settings, workflow settings, normalized configuration, and
+   declared schemas.
+6. Project `AgentConfig` and retain the resolved records in `RunPlan`.
+7. Load the adapter runner only when the runtime starts.
+
+`RunPlan.adapter_descriptor` and `RunPlan.adapter_target_descriptor` retain the
+resolved records and discovery provenance. `doctor(...)` reports both records
+for registered-target plans.
+
+After installed and explicit discovery both work, [verify every descriptor
+claim](conformance.md).

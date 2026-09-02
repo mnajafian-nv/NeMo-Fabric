@@ -24,7 +24,6 @@ Resolved adapter identity attached to a run plan.
 **Attributes:**
 
  - <b>`adapter_id`</b>:  Stable identifier of the NeMo Fabric adapter implementation.
- - <b>`harness`</b>:  Stable machine-readable harness identifier.
  - <b>`adapter_kind`</b>:  Execution mechanism used by the adapter.
  - <b>`metadata`</b>:  Adapter-specific, JSON-compatible metadata.
 
@@ -37,7 +36,6 @@ The mapping exposes the following typed fields:
 | Field | Type |
 | --- | --- |
 | `adapter_id` | `str` |
-| `harness` | `str` |
 | `adapter_kind` | `str` |
 | `metadata` | `Mapping[str, Any]` |
 
@@ -1011,6 +1009,80 @@ Return a detached, JSON-compatible mapping for serialization.
 ---
 
 
+## <kbd>class</kbd> `RunUsage`
+
+Normalized invocation usage reported by an adapter target.
+
+
+
+### Fields
+
+The mapping exposes the following typed fields:
+
+| Field | Type |
+| --- | --- |
+| `input_tokens` | `int \| None` |
+| `output_tokens` | `int \| None` |
+| `total_tokens` | `int \| None` |
+| `cost_usd` | `float \| None` |
+| `metadata` | `Mapping[str, Any]` |
+
+### <kbd>method</kbd> `__init__`
+
+```python
+def __init__(mapping: Mapping[str, Any]) -> None
+```
+
+
+
+
+
+
+---
+
+### <kbd>property</kbd> extra_fields
+
+Return an immutable view of preserved extension fields.
+
+
+
+---
+
+
+### <kbd>classmethod</kbd> `from_mapping`
+
+```python
+def from_mapping(mapping: Mapping[str, Any]) -> Self
+```
+
+Validate and copy a mapping into the requested typed model.
+
+---
+
+
+### <kbd>method</kbd> `to_dict`
+
+```python
+def to_dict() -> dict[str, Any]
+```
+
+Return the same detached representation as ``to_mapping()``.
+
+---
+
+
+### <kbd>method</kbd> `to_mapping`
+
+```python
+def to_mapping() -> dict[str, Any]
+```
+
+Return a detached, JSON-compatible mapping for serialization.
+
+
+---
+
+
 ## <kbd>class</kbd> `RunResult`
 
 Normalized terminal result from one NeMo Fabric invocation.
@@ -1031,6 +1103,7 @@ The model is both attribute-accessible and mapping-compatible. A harness failure
  - <b>`status`</b>:  Terminal invocation status.
  - <b>`output`</b>:  Object-shaped adapter output as ``RunOutput``; non-object values  are preserved as-is.
  - <b>`error`</b>:  Structured failure, or ``None`` on success.
+ - <b>`usage`</b>:  Normalized invocation usage, or ``None`` when unavailable.
  - <b>`artifacts`</b>:  Normalized artifact manifest.
  - <b>`telemetry`</b>:  Ordered telemetry references.
  - <b>`events`</b>:  Ordered lifecycle and invocation events.
@@ -1054,6 +1127,7 @@ The mapping exposes the following typed fields:
 | `status` | `str` |
 | `output` | `RunOutput \| JSONValue` |
 | `error` | `ErrorInfo \| None` |
+| `usage` | `RunUsage \| None` |
 | `artifacts` | `ArtifactManifest` |
 | `telemetry` | `Sequence[TelemetryRef]` |
 | `events` | `Sequence[FabricEvent]` |

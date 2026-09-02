@@ -221,9 +221,9 @@ Return a detached JSON-compatible mapping for Rust/core calls.
 ---
 
 
-## <kbd>class</kbd> `WorkflowEntrypointConfig`
+## <kbd>class</kbd> `WorkflowConfig`
 
-Adapter-owned workflow entry point.
+Registered workflow target and immutable construction settings.
 
 
 
@@ -233,8 +233,8 @@ The model defines the following fields:
 
 | Field | Type | Required | Default | Constraints | Description |
 | --- | --- | --- | --- | --- | --- |
-| `kind` | `str` | Yes | — | `MinLen(min_length=1), _PydanticGeneralMetadata(pattern='\\S')` | — |
-| `ref` | `str` | Yes | — | `MinLen(min_length=1), _PydanticGeneralMetadata(pattern='\\S')` | — |
+| `target_id` | `str` | Yes | — | `MinLen(min_length=1), _PydanticGeneralMetadata(pattern='\\S')` | — |
+| `settings` | `dict[str, Any]` | No | `dict()` | — | — |
 
 ---
 
@@ -292,9 +292,9 @@ Return a detached JSON-compatible mapping for Rust/core calls.
 ---
 
 
-## <kbd>class</kbd> `WorkflowConfig`
+## <kbd>class</kbd> `DiscoveryConfig`
 
-Adapter-owned workflow selection and immutable construction settings.
+Explicit local descriptor discovery paths.
 
 
 
@@ -304,8 +304,7 @@ The model defines the following fields:
 
 | Field | Type | Required | Default | Constraints | Description |
 | --- | --- | --- | --- | --- | --- |
-| `entrypoint` | `WorkflowEntrypointConfig` | Yes | — | — | — |
-| `settings` | `dict[str, Any]` | No | `dict()` | — | — |
+| `local_paths` | `list[str \| Path]` | No | `list()` | — | — |
 
 ---
 
@@ -376,7 +375,7 @@ The model defines the following fields:
 | Field | Type | Required | Default | Constraints | Description |
 | --- | --- | --- | --- | --- | --- |
 | `content` | `str` | Yes | — | `MinLen(min_length=1), _PydanticGeneralMetadata(pattern='\\S')` | — |
-| `mode` | `Literal['replace']` | No | `'replace'` | — | — |
+| `mode` | `Literal['replace', 'append']` | No | `'replace'` | — | — |
 
 ---
 
@@ -825,6 +824,86 @@ Return a detached JSON-compatible mapping for Rust/core calls.
 ---
 
 
+## <kbd>class</kbd> `McpAuthenticationConfig`
+
+MCP server authentication configuration.
+
+
+
+### Fields
+
+The model defines the following fields:
+
+| Field | Type | Required | Default | Constraints | Description |
+| --- | --- | --- | --- | --- | --- |
+| `type` | `Literal['oauth2', 'service_account']` | Yes | — | — | — |
+| `client_id` | `str \| None` | No | `None` | — | — |
+| `client_secret_env` | `str \| None` | No | `None` | — | — |
+| `scopes` | `list[str]` | No | `list()` | — | — |
+| `redirect_uri` | `str \| None` | No | `None` | — | — |
+| `enable_dynamic_registration` | `bool` | No | `True` | — | — |
+| `client_name` | `str \| None` | No | `None` | — | — |
+| `token_endpoint_auth_method` | `Literal['none', 'client_secret_post', 'client_secret_basic'] \| None` | No | `None` | — | — |
+| `authorization_timeout_seconds` | `int` | No | `300` | `Gt(gt=0)` | — |
+| `token_url` | `str \| None` | No | `None` | — | — |
+| `token_cache_buffer_seconds` | `int` | No | `300` | `Ge(ge=0)` | — |
+
+---
+
+### <kbd>property</kbd> extra_fields
+
+Return fields preserved by the extension point for this model.
+
+---
+
+### <kbd>property</kbd> model_extra
+
+Get extra fields set during validation.
+
+
+
+**Returns:**
+  A dictionary of extra fields, or `None` if `config.extra` is not set to `"allow"`.
+
+---
+
+### <kbd>property</kbd> model_fields_set
+
+Returns the set of fields that have been explicitly set on this model instance.
+
+
+
+**Returns:**
+  A set of strings representing the fields that have been set,  i.e. that were not filled from defaults.
+
+
+
+---
+
+
+### <kbd>classmethod</kbd> `from_mapping`
+
+```python
+def from_mapping(value: Mapping[str, Any]) -> Self
+```
+
+Validate a mapping using this Pydantic model.
+
+---
+
+
+### <kbd>method</kbd> `to_mapping`
+
+```python
+def to_mapping() -> dict[str, Any]
+```
+
+Return a detached JSON-compatible mapping for Rust/core calls.
+
+
+---
+
+
 ## <kbd>class</kbd> `McpServerConfig`
 
 MCP server configuration.
@@ -837,10 +916,12 @@ The model defines the following fields:
 
 | Field | Type | Required | Default | Constraints | Description |
 | --- | --- | --- | --- | --- | --- |
-| `transport` | `str` | Yes | — | `MinLen(min_length=1)` | — |
+| `transport` | `Literal['stdio', 'sse', 'streamable-http']` | Yes | — | — | — |
 | `url` | `str` | Yes | — | `MinLen(min_length=1)` | MCP server URL for network transports or executable for stdio. |
 | `args` | `list[str]` | No | `list()` | — | Command-line arguments passed to an MCP stdio server process. |
-| `env` | `dict[str, str]` | No | `dict()` | — | — |
+| `env` | `dict[str, str]` | No | `dict()` | — | Environment variables passed to an MCP stdio server process. |
+| `authentication` | `McpAuthenticationConfig \| None` | No | `None` | — | — |
+| `custom_headers` | `dict[str, str]` | No | `dict()` | — | HTTP headers passed to an MCP server when transport is sse or streamable-http. |
 | `exposure` | `Literal['harness_native', 'fabric_managed']` | No | `'harness_native'` | — | — |
 | `allowed_tools` | `list[str] \| None` | No | `None` | — | MCP tools to expose. None exposes every discovered tool; an empty list exposes no tools. |
 | `blocked_tools` | `list[str]` | No | `list()` | — | MCP tools to block after applying the optional allowlist. |
@@ -958,6 +1039,8 @@ def add_server(
     url: str,
     args: Sequence[str] | None = None,
     env: Mapping[str, str] | None = None,
+    authentication: McpAuthenticationConfig | None = None,
+    custom_headers: Mapping[str, str] | None = None,
     exposure: Literal['harness_native', 'fabric_managed'] = 'harness_native',
     allowed_tools: Sequence[str] | None = None,
     blocked_tools: Sequence[str] = (),
@@ -1529,9 +1612,92 @@ Return a detached JSON-compatible mapping for Rust/core calls.
 ---
 
 
-## <kbd>class</kbd> `RelayOtlpConfig`
+## <kbd>class</kbd> `RelayOpenTelemetryEndpointConfig`
 
-NeMo Relay OTLP export configuration for OpenTelemetry/OpenInference.
+One typed NeMo Relay OpenTelemetry destination.
+
+
+
+### Fields
+
+The model defines the following fields:
+
+| Field | Type | Required | Default | Constraints | Description |
+| --- | --- | --- | --- | --- | --- |
+| `type` | `Literal['full', 'gen_ai', 'openinference']` | Yes | — | — | — |
+| `endpoint` | `str` | Yes | — | `MinLen(min_length=1), _PydanticGeneralMetadata(pattern='\\S')` | — |
+| `mark_projection` | `Literal['inherit', 'event', 'tool']` | No | `'inherit'` | — | — |
+| `mark_exclude_names` | `list[str]` | No | `<generated>` | — | — |
+| `attribute_mappings` | `list[dict[str, str]]` | No | `list()` | — | — |
+| `transport` | `Literal['http_binary', 'grpc']` | No | `'http_binary'` | — | — |
+| `headers` | `dict[str, str]` | No | `dict()` | — | — |
+| `header_env` | `dict[str, str]` | No | `dict()` | — | — |
+| `resource_attributes` | `dict[str, str]` | No | `dict()` | — | — |
+| `service_name` | `str` | No | `'unknown_service'` | — | — |
+| `service_namespace` | `str \| None` | No | `None` | — | — |
+| `service_version` | `str \| None` | No | `None` | — | — |
+| `instrumentation_scope` | `str` | No | `'opentelemetry'` | — | — |
+| `timeout_millis` | `int` | No | `3000` | — | — |
+
+---
+
+### <kbd>property</kbd> extra_fields
+
+Return fields preserved by the extension point for this model.
+
+---
+
+### <kbd>property</kbd> model_extra
+
+Get extra fields set during validation.
+
+
+
+**Returns:**
+  A dictionary of extra fields, or `None` if `config.extra` is not set to `"allow"`.
+
+---
+
+### <kbd>property</kbd> model_fields_set
+
+Returns the set of fields that have been explicitly set on this model instance.
+
+
+
+**Returns:**
+  A set of strings representing the fields that have been set,  i.e. that were not filled from defaults.
+
+
+
+---
+
+
+### <kbd>classmethod</kbd> `from_mapping`
+
+```python
+def from_mapping(value: Mapping[str, Any]) -> Self
+```
+
+Validate a mapping using this Pydantic model.
+
+---
+
+
+### <kbd>method</kbd> `to_mapping`
+
+```python
+def to_mapping() -> dict[str, Any]
+```
+
+Return a detached JSON-compatible mapping for Rust/core calls.
+
+
+---
+
+
+## <kbd>class</kbd> `RelayOpenTelemetryConfig`
+
+NeMo Relay typed OpenTelemetry destination configuration.
 
 
 
@@ -1542,15 +1708,7 @@ The model defines the following fields:
 | Field | Type | Required | Default | Constraints | Description |
 | --- | --- | --- | --- | --- | --- |
 | `enabled` | `bool` | No | `False` | — | — |
-| `transport` | `Literal['http_binary', 'grpc']` | No | `'http_binary'` | — | — |
-| `endpoint` | `str \| None` | No | `None` | — | — |
-| `headers` | `dict[str, str]` | No | `dict()` | — | — |
-| `resource_attributes` | `dict[str, str]` | No | `dict()` | — | — |
-| `service_name` | `str` | No | `'nemo-relay'` | — | — |
-| `service_namespace` | `str \| None` | No | `None` | — | — |
-| `service_version` | `str \| None` | No | `None` | — | — |
-| `instrumentation_scope` | `str \| None` | No | `None` | — | — |
-| `timeout_millis` | `int` | No | `3000` | — | — |
+| `endpoints` | `list[RelayOpenTelemetryEndpointConfig]` | No | `list()` | — | — |
 
 ---
 
@@ -1620,12 +1778,12 @@ The model defines the following fields:
 
 | Field | Type | Required | Default | Constraints | Description |
 | --- | --- | --- | --- | --- | --- |
-| `version` | `int` | No | `2` | — | — |
+| `version` | `Literal[3]` | No | `3` | — | — |
 | `atof` | `RelayAtofConfig \| dict[str, Any] \| None` | No | `None` | — | — |
 | `atif` | `RelayAtifConfig \| dict[str, Any] \| None` | No | `None` | — | — |
-| `opentelemetry` | `RelayOtlpConfig \| dict[str, Any] \| None` | No | `None` | — | — |
-| `openinference` | `RelayOtlpConfig \| dict[str, Any] \| None` | No | `None` | — | — |
+| `opentelemetry` | `RelayOpenTelemetryConfig \| None` | No | `None` | — | — |
 | `policy` | `RelayConfigPolicy \| dict[str, Any] \| None` | No | `None` | — | — |
+| `enable_full_payloads` | `bool` | No | `False` | — | — |
 
 ---
 
@@ -1769,7 +1927,7 @@ The model defines the following fields:
 | --- | --- | --- | --- | --- | --- |
 | `project` | `str \| None` | No | `None` | — | — |
 | `output_dir` | `str \| Path \| None` | No | `None` | — | — |
-| `observability` | `RelayObservabilityConfig \| dict[str, Any] \| None` | No | `None` | — | — |
+| `observability` | `RelayObservabilityConfig \| None` | No | `None` | — | — |
 | `components` | `list[RelayComponentConfig \| dict[str, Any]]` | No | `list()` | — | — |
 | `policy` | `RelayConfigPolicy \| dict[str, Any] \| None` | No | `None` | — | — |
 
@@ -2169,7 +2327,7 @@ Remove one named definition and return this tools config.
 def to_mapping() -> dict[str, Any]
 ```
 
-Return a detached JSON-compatible mapping for Rust/core calls.
+Return the tool mapping without collapsing an explicit empty policy.
 
 
 ---
@@ -2191,8 +2349,9 @@ The model defines the following fields:
 | --- | --- | --- | --- | --- | --- |
 | `schema_version` | `str` | No | `'fabric.agent/v1alpha1'` | — | — |
 | `metadata` | `MetadataConfig` | Yes | — | — | — |
-| `harness` | `HarnessConfig` | Yes | — | — | — |
+| `harness` | `HarnessConfig \| None` | No | `None` | — | — |
 | `workflow` | `WorkflowConfig \| None` | No | `None` | — | — |
+| `discovery` | `DiscoveryConfig \| None` | No | `None` | — | — |
 | `runtime` | `RuntimeConfig` | No | `RuntimeConfig()` | — | — |
 | `environment` | `EnvironmentConfig \| None` | No | `None` | — | — |
 | `models` | `dict[str, ModelConfig]` | No | `dict()` | — | — |
@@ -2200,7 +2359,7 @@ The model defines the following fields:
 | `mcp` | `McpConfig \| None` | No | `None` | — | — |
 | `skills` | `SkillConfig \| None` | No | `None` | — | — |
 | `telemetry` | `TelemetryConfig \| None` | No | `None` | — | — |
-| `relay` | `RelayConfig \| dict[str, Any] \| None` | No | `None` | — | — |
+| `relay` | `RelayConfig \| None` | No | `None` | — | — |
 | `tools` | `ToolsConfig \| None` | No | `None` | — | — |
 
 ---
@@ -2246,6 +2405,8 @@ def add_mcp_server(
     url: str,
     args: Sequence[str] | None = None,
     env: Mapping[str, str] | None = None,
+    authentication: McpAuthenticationConfig | None = None,
+    custom_headers: Mapping[str, str] | None = None,
     exposure: Literal['harness_native', 'fabric_managed'] = 'harness_native',
     allowed_tools: Sequence[str] | None = None,
     blocked_tools: Sequence[str] = (),
