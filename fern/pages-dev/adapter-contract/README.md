@@ -51,7 +51,7 @@ Use the narrowest reusable adapter boundary that your target provides:
 
 | Integration Shape | Use It When | Adapter Reuse | Reference |
 | --- | --- | --- | --- |
-| Harness adapter | An opinionated harness supplies a stable construction and execution model. | One adapter supports many configurations of that harness. | [Hermes Agent](https://github.com/NVIDIA/NeMo-Fabric/tree/main/adapters/hermes); [mini-SWE-agent](https://github.com/NVIDIA/NeMo-Fabric/tree/main/adapters/mini-swe-agent) for the minimum surface |
+| Harness adapter | An opinionated harness supplies a stable construction and execution model. | One adapter supports many configurations of that harness. | [Hermes Agent](https://github.com/NVIDIA/NeMo-Fabric/tree/main/adapters/python/hermes); [mini-SWE-agent](https://github.com/NVIDIA/NeMo-Fabric/tree/main/adapters/python/mini-swe-agent) for the minimum surface |
 | Shared framework adapter | A framework can load multiple registered custom agents through stable entry-point semantics. | One adapter supports many separately installed targets. | [NeMo Agent Toolkit](https://github.com/NVIDIA/NeMo-Fabric/tree/main/external/nat) |
 | Dedicated custom-agent adapter | The application owns execution behavior that does not fit a reusable loading contract. | One adapter packages one custom agent or agent family. | [LangGraph email-phishing analyzer](https://github.com/NVIDIA/NeMo-Fabric/tree/main/examples/langgraph_custom_agent) |
 
@@ -92,12 +92,12 @@ needs:
 
 | Stage | Add | Done When |
 | --- | --- | --- |
-| 1. [Describe the adapter](adapter-descriptor.md) | Identity, runtime binding, minimum descriptor, and optional target records. | NeMo Fabric can discover and validate metadata without importing adapter code. |
-| 2. [Map configuration](normalized-configuration.md) | Only the normalized `AgentConfig` fields and typed settings the target applies. | Unsupported behavior fails planning instead of being ignored. |
-| 3. [Implement execution](execution.md) | `start`, `invoke`, `stop`, runtime isolation, and safe failures. | One runtime can execute an ordered request sequence and always attempts cleanup. |
-| 4. [Normalize outcomes](results.md) | `AgentRunResult`, error translation, artifacts, and telemetry integration. | Every completed target invocation has one safe terminal outcome. |
-| 5. [Package and register](registration-and-discovery.md) | Installed descriptor files or explicit development paths. | Planning resolves the intended adapter and optional registered target by exact ID. |
-| 6. [Verify the adapter](conformance.md) | Planning, lifecycle, cleanup, isolation, and declared capability tests. | The minimum profile and every descriptor claim have evidence. |
+| 1. [Describe the adapter](tutorials/adapter-descriptor.md) | Identity, runtime binding, minimum descriptor, and optional target records. | NeMo Fabric can discover and validate metadata without importing adapter code. |
+| 2. [Map configuration](tutorials/normalized-configuration.md) | Only the normalized `AgentConfig` fields and typed settings the target applies. | Unsupported behavior fails planning instead of being ignored. |
+| 3. [Implement execution](tutorials/execution.md) | `start`, `invoke`, `stop`, runtime isolation, and safe failures. | One runtime can execute an ordered request sequence and always attempts cleanup. |
+| 4. [Normalize outcomes](tutorials/results.md) | `AgentRunResult`, error translation, artifacts, and telemetry integration. | Every completed target invocation has one safe terminal outcome. |
+| 5. [Package and register](tutorials/registration-and-discovery.md) | Installed descriptor files or explicit development paths. | Planning resolves the intended adapter and optional registered target by exact ID. |
+| 6. [Verify the adapter](tutorials/conformance.md) | Planning, lifecycle, cleanup, isolation, and declared capability tests. | The minimum profile and every descriptor claim have evidence. |
 
 Add [native OpenAI Chat Completions streaming](openai-streaming.md) only after
 the required lifecycle works. It is an optional adapter capability and is

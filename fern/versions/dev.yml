@@ -28,20 +28,22 @@ navigation:
     path: ../pages-dev/adapter-contract/README.md
   - page: Custom-Agent Integrations
     path: ../pages-dev/adapter-contract/custom-agents.md
-  - page: Adapter Descriptor
-    path: ../pages-dev/adapter-contract/adapter-descriptor.md
-  - page: Normalized Configuration
-    path: ../pages-dev/adapter-contract/normalized-configuration.md
-  - page: Execution
-    path: ../pages-dev/adapter-contract/execution.md
+  - section: Tutorials
+    contents:
+    - page: Describe Adapter
+      path: ../pages-dev/adapter-contract/tutorials/adapter-descriptor.md
+    - page: Map Normalized Configuration
+      path: ../pages-dev/adapter-contract/tutorials/normalized-configuration.md
+    - page: Implement Execution
+      path: ../pages-dev/adapter-contract/tutorials/execution.md
+    - page: Normalize Results and Telemetry
+      path: ../pages-dev/adapter-contract/tutorials/results.md
+    - page: Register and Discover Adapter
+      path: ../pages-dev/adapter-contract/tutorials/registration-and-discovery.md
+    - page: Verify Adapter
+      path: ../pages-dev/adapter-contract/tutorials/conformance.md
   - page: Optional OpenAI Streaming
     path: ../pages-dev/adapter-contract/openai-streaming.md
-  - page: Results and Telemetry
-    path: ../pages-dev/adapter-contract/results.md
-  - page: Registration and Discovery
-    path: ../pages-dev/adapter-contract/registration-and-discovery.md
-  - page: Verify an Adapter
-    path: ../pages-dev/adapter-contract/conformance.md
   - page: Examples and References
     path: ../pages-dev/adapter-contract/examples.md
 - section: Integrations
@@ -66,6 +68,10 @@ navigation:
       path: ../pages-dev/integrations/harness/deepagents.mdx
     - page: mini-SWE-agent
       path: ../pages-dev/integrations/harness/mini-swe-agent.mdx
+    - page: OpenClaw
+      path: ../pages-dev/integrations/harness/openclaw.mdx
+    - page: OpenCode
+      path: ../pages-dev/integrations/harness/opencode.mdx
     - page: Pi
       path: ../pages-dev/integrations/harness/pi.mdx
     - page: Remote Agent
@@ -82,6 +88,8 @@ navigation:
         path: ../pages-dev/reference/api/python-library-reference/nemo_fabric.client.md
       - page: Runtime
         path: ../pages-dev/reference/api/python-library-reference/nemo_fabric.runtime.md
+      - page: Service
+        path: ../pages-dev/reference/api/python-library-reference/nemo_fabric.service.md
       - page: Relay Streaming
         path: ../pages-dev/reference/api/python-library-reference/nemo_fabric.streaming.md
       - page: OpenAI Streaming
