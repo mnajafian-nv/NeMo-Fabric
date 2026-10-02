@@ -6,6 +6,8 @@ navigation:
   contents:
   - page: Overview
     path: ../pages-dev/about-nemo-fabric/overview.mdx
+  - page: Ecosystem
+    path: ../pages-dev/about-nemo-fabric/ecosystem.mdx
   - page: Release Notes
     path: ../pages-dev/about-nemo-fabric/release-notes.mdx
 - section: Getting Started
@@ -62,6 +64,8 @@ navigation:
       path: ../pages-dev/integrations/harness/claude.mdx
     - page: Codex
       path: ../pages-dev/integrations/harness/codex.mdx
+    - page: Cline
+      path: ../pages-dev/integrations/harness/cline.mdx
     - page: Hermes Agent
       path: ../pages-dev/integrations/harness/hermes.mdx
     - page: LangChain Deep Agents
@@ -74,6 +78,8 @@ navigation:
       path: ../pages-dev/integrations/harness/opencode.mdx
     - page: Pi
       path: ../pages-dev/integrations/harness/pi.mdx
+    - page: Qwen Code
+      path: ../pages-dev/integrations/harness/qwen.mdx
     - page: Remote Agent
       path: ../pages-dev/integrations/harness/remote-agent.mdx
 - section: Reference
