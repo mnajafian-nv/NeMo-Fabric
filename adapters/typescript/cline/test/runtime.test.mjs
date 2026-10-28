@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { LifecycleError } from "nemo-fabric-adapters-common";
 
-import { ClineAdapterRuntime } from "../dist/runtime.js";
+import { ClineAdapterRuntime, ClinePromptError } from "../dist/runtime.js";
 
 function startInput(runtimeId = "runtime-1") {
   return {
@@ -157,4 +157,25 @@ test("stop is safe before start and idempotent after start", async () => {
   await runtime.stop();
   await runtime.stop();
   assert.equal(stops, 1);
+});
+
+
+test("returns evidence with an SDK failure and invalidates the failed session", async () => {
+  let stops = 0;
+  const usage = { extensions: { "nvidia.fabric.cline.usage_evidence.v1": {
+    observed: { input_tokens: 40 }, gaps: ["scope_unverified", "unfinished_work", "missing_usage"],
+  } } };
+  const runtime = new ClineAdapterRuntime({ async create() {
+    return {
+      async prompt() { throw new ClinePromptError(new LifecycleError("cline_session_failed", "connection dropped", { retryable: true }), usage); },
+      async stop() { stops++; },
+    };
+  } });
+  await runtime.start(startInput());
+  assert.deepEqual(await runtime.invoke({ input: "one" }, context), {
+    status: "failed", output: null, usage,
+    error: { code: "cline_session_failed", message: "connection dropped", retryable: true },
+  });
+  assert.equal(stops, 1);
+  await assert.rejects(runtime.invoke({ input: "two" }, context), error => error.code === "cline_not_started");
 });

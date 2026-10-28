@@ -11,12 +11,12 @@ import type {
   AgentConfig,
   AgentMcpServerConfig,
   AgentModelConfig,
-  AgentUsage,
   JsonObject,
 } from "nemo-fabric-adapter-contract";
 import { LifecycleError, unobservedHealth, type AdapterStartInput } from "nemo-fabric-adapters-common";
 
-import type { ClinePromptOutcome, ClineSessionFactory, ClineSessionHandle } from "./runtime.js";
+import { ClinePromptError, type ClinePromptOutcome, type ClineSessionFactory, type ClineSessionHandle } from "./runtime.js";
+import { ClineInvocationUsage, clineUsageHooks } from "./usage.js";
 
 const CLINE_HARNESS_INSTALL_COMMAND = "npm install @cline/sdk@0.0.83";
 const CLINE_PLUGIN_NAME = "nvidia.fabric.cline";
@@ -371,39 +371,6 @@ async function validateRuntimePlugin(
   }
 }
 
-function normalizeUsage(usage: ClineUsage | undefined): AgentUsage | undefined {
-  if (usage === undefined) {
-    return undefined;
-  }
-  if (typeof usage !== "object" || usage === null) {
-    throw new LifecycleError("cline_malformed_result", "Cline returned malformed usage metadata");
-  }
-  for (const value of [usage.inputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheWriteTokens]) {
-    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
-      throw new LifecycleError("cline_malformed_result", "Cline returned malformed usage metadata");
-    }
-  }
-  if (usage.totalCost !== undefined && (!Number.isFinite(usage.totalCost) || usage.totalCost < 0)) {
-    throw new LifecycleError("cline_malformed_result", "Cline returned malformed usage metadata");
-  }
-  const input = usage.inputTokens;
-  const output = usage.outputTokens;
-  if (input !== undefined && output !== undefined && !Number.isSafeInteger(input + output)) {
-    throw new LifecycleError("cline_malformed_result", "Cline returned malformed usage metadata");
-  }
-  const extensions: JsonObject = {
-    ...(usage.cacheReadTokens === undefined ? {} : { cache_read_tokens: usage.cacheReadTokens }),
-    ...(usage.cacheWriteTokens === undefined ? {} : { cache_write_tokens: usage.cacheWriteTokens }),
-  };
-  return {
-    ...(input === undefined ? {} : { input_tokens: input }),
-    ...(output === undefined ? {} : { output_tokens: output }),
-    ...(input === undefined || output === undefined ? {} : { total_tokens: input + output }),
-    ...(usage.totalCost === undefined ? {} : { cost_usd: usage.totalCost }),
-    ...(Object.keys(extensions).length === 0 ? {} : { extensions }),
-  };
-}
-
 function sdkErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -414,7 +381,7 @@ function sdkErrorMessage(error: unknown): string {
   return "Cline session communication failed";
 }
 
-function normalizeResult(result: ClineResult | undefined, sessionId: string): ClinePromptOutcome {
+function normalizeResult(result: ClineResult | undefined, sessionId: string, evidence: ClineInvocationUsage): ClinePromptOutcome {
   if (
     result === undefined ||
     !["completed", "aborted", "error", "mistake_limit", "max_iterations"].includes(String(result.finishReason))
@@ -441,7 +408,12 @@ function normalizeResult(result: ClineResult | undefined, sessionId: string): Cl
     }
     model = { id: result.model.id, provider: result.model.provider };
   }
-  const usage = normalizeUsage(result.usage);
+  if (result.usage !== undefined && (typeof result.usage !== "object" || result.usage === null ||
+      [result.usage.inputTokens, result.usage.outputTokens, result.usage.cacheReadTokens, result.usage.cacheWriteTokens]
+        .some(value => value !== undefined && (!Number.isSafeInteger(value) || value < 0)))) {
+    throw new LifecycleError("cline_malformed_result", "Cline returned malformed usage metadata");
+  }
+  const usage = evidence.finish(result.usage);
   const finishReason = String(result.finishReason);
   const status = finishReason === "completed" ? "completed" : finishReason === "aborted" ? "aborted" : "failed";
   return {
@@ -514,14 +486,19 @@ class ClineSdkSessionHandle implements ClineSessionHandle {
   }
 
   async prompt(text: string): Promise<ClinePromptOutcome> {
-    if (this.stopped || this.sessionId === undefined) {
+    const sessionId = this.sessionId;
+    if (this.stopped || sessionId === undefined) {
       throw new LifecycleError("cline_session_stopped", "The Cline session is already stopped");
     }
+    const evidence = new ClineInvocationUsage();
     try {
-      return normalizeResult(await this.core.send({ sessionId: this.sessionId, prompt: text }), this.sessionId);
+      return await evidence.run(async () => normalizeResult(
+        await this.core.send({ sessionId, prompt: text }), sessionId, evidence,
+      ));
     } catch (error) {
-      if (error instanceof LifecycleError) throw error;
-      throw new LifecycleError("cline_session_failed", sdkErrorMessage(error), { retryable: true });
+      const failure = error instanceof LifecycleError ? error :
+        new LifecycleError("cline_session_failed", sdkErrorMessage(error), { retryable: true });
+      throw new ClinePromptError(failure, evidence.finish());
     }
   }
 
@@ -688,7 +665,7 @@ export class ClineSdkSessionFactory implements ClineSessionFactory {
         interactive: true,
         source: "sdk",
         toolPolicies: policies,
-        localRuntime: { configExtensions: [] },
+        localRuntime: { configExtensions: [], hooks: clineUsageHooks },
       }, async () => {
         await rm(files.root, { recursive: true, force: true });
       });

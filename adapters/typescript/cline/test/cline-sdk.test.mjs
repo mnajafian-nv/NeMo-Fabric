@@ -8,6 +8,11 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 
 import { ClineSdkSessionFactory } from "../dist/cline-sdk.js";
+import { clineUsageHooks } from "../dist/usage.js";
+
+function observations(observed, gaps = ["scope_unverified"]) {
+  return { extensions: { "nvidia.fabric.cline.usage_evidence.v1": { observed, gaps } } };
+}
 
 function input(overrides = {}) {
   return {
@@ -56,6 +61,7 @@ function fakeSdk(options = {}) {
     },
     async send(value) {
       calls.send.push(value);
+      await options.onSend?.(value, calls.start[0]?.localRuntime?.hooks);
       if (options.sendError !== undefined && calls.send.length > 1) throw options.sendError;
       return results.shift();
     },
@@ -129,14 +135,14 @@ test("maps model, endpoint, credential, system instruction, and built-in tool po
       search_codebase: { enabled: false, autoApprove: true },
       run_commands: { enabled: false, autoApprove: true },
     },
-    localRuntime: { configExtensions: [] },
+    localRuntime: { configExtensions: [], hooks: clineUsageHooks },
   });
   assert.deepEqual(sdk.calls.send, [
     { sessionId: "cline-session-1", prompt: "one" },
     { sessionId: "cline-session-1", prompt: "two" },
   ]);
-  assert.deepEqual(first.usage, { input_tokens: 2, output_tokens: 3, total_tokens: 5, cost_usd: 0.5 });
-  assert.deepEqual(second.usage, { input_tokens: 4, output_tokens: 1, total_tokens: 5 });
+  assert.deepEqual(first.usage, observations({ input_tokens: 2, output_tokens: 3 }));
+  assert.deepEqual(second.usage, observations({ input_tokens: 4, output_tokens: 1 }));
   await handle.stop();
 });
 
@@ -293,20 +299,21 @@ test("maps Cline terminal finish reasons", async () => {
   assert.deepEqual(await handle.prompt("one"), {
     status: "aborted",
     text: "stopped",
-    usage: { input_tokens: 1, output_tokens: 0, total_tokens: 1 },
+    usage: observations({ input_tokens: 1 }, ["scope_unverified", "missing_usage"]),
     extensions: { session_id: "cline-session-1", finish_reason: "aborted" },
   });
   assert.deepEqual(await handle.prompt("two"), {
     status: "failed",
     text: "provider failed",
     errorMessage: "provider failed",
-    usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+    usage: observations({ input_tokens: 2, output_tokens: 1 }),
     extensions: { session_id: "cline-session-1", finish_reason: "error" },
   });
   assert.deepEqual(await handle.prompt("three"), {
     status: "failed",
     text: "iteration limit reached",
     errorMessage: "iteration limit reached",
+    usage: observations({}, ["scope_unverified", "missing_usage"]),
     extensions: { session_id: "cline-session-1", finish_reason: "max_iterations" },
   });
   await handle.stop();
@@ -331,13 +338,7 @@ test("normalizes Cline usage and result metadata", async () => {
   assert.deepEqual(await handle.prompt("one"), {
     status: "completed",
     text: "done",
-    usage: {
-      input_tokens: 7,
-      output_tokens: 3,
-      total_tokens: 10,
-      cost_usd: 0.25,
-      extensions: { cache_read_tokens: 4, cache_write_tokens: 1 },
-    },
+    usage: observations({ input_tokens: 7, output_tokens: 3, cached_input_tokens: 4, cache_write_input_tokens: 1 }),
     extensions: {
       session_id: "cline-session-1",
       finish_reason: "completed",
@@ -456,4 +457,64 @@ test("rejects unsupported MCP authentication and tool filters", async () => {
     })),
     (error) => error.code === "cline_mcp_blocklist_unsupported",
   );
+});
+
+
+test("terminal Cline metrics remain observations when retry coverage is unknown", async () => {
+  const sdk = fakeSdk({ results: [{
+    finishReason: "completed", text: "done",
+    usage: { inputTokens: 40, outputTokens: 8, cacheReadTokens: 6, totalCost: 0.25 },
+  }] });
+  const handle = await new ClineSdkSessionFactory(sdk.loader).create(input());
+  try {
+    const outcome = await handle.prompt("one");
+    assert.deepEqual(outcome.usage, {
+      extensions: {
+        "nvidia.fabric.cline.usage_evidence.v1": {
+          observed: { input_tokens: 40, output_tokens: 8, cached_input_tokens: 6 },
+          gaps: ["scope_unverified"],
+        },
+      },
+    });
+  } finally {
+    await handle.stop();
+  }
+});
+
+
+test("public hooks keep model-call observations isolated across sends", async () => {
+  const emit = (hooks, id, inputTokens) => {
+    hooks.beforeModel({ snapshot: { usage: {} } });
+    hooks.afterModel({ assistantMessage: { id, metrics: { inputTokens, outputTokens: 2 } } });
+  };
+  const sdk = fakeSdk({
+    async onSend(value, hooks) { emit(hooks, `call-${value.prompt}`, value.prompt === "one" ? 10 : 20); },
+  });
+  const handle = await new ClineSdkSessionFactory(sdk.loader).create(input());
+  try {
+    assert.deepEqual((await handle.prompt("one")).usage, observations({ input_tokens: 10, output_tokens: 2 }));
+    assert.deepEqual((await handle.prompt("two")).usage, observations({ input_tokens: 20, output_tokens: 2 }));
+  } finally {
+    await handle.stop();
+  }
+});
+
+test("SDK failure retains usage already received by the public hooks", async () => {
+  const sdk = fakeSdk({
+    async onSend(_value, hooks) {
+      hooks.beforeModel({ snapshot: { usage: {} } });
+      hooks.onEvent({ type: "usage-updated", usage: { inputTokens: 40, outputTokens: 8 } });
+      throw new Error("connection dropped");
+    },
+  });
+  const handle = await new ClineSdkSessionFactory(sdk.loader).create(input());
+  try {
+    await assert.rejects(handle.prompt("one"), error => {
+      assert.equal(error.code, "cline_session_failed");
+      assert.deepEqual(error.usage, observations({ input_tokens: 40, output_tokens: 8 }, ["scope_unverified", "unfinished_work"]));
+      return true;
+    });
+  } finally {
+    await handle.stop();
+  }
 });

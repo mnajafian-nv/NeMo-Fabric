@@ -17,6 +17,13 @@ import {
   type AdapterStartInput,
 } from "nemo-fabric-adapters-common";
 
+/** Preserve invocation evidence when the SDK exchange fails. */
+export class ClinePromptError extends LifecycleError {
+  constructor(error: LifecycleError, readonly usage: AgentUsage) {
+    super(error.code, error.message, { retryable: error.retryable, metadata: error.metadata });
+  }
+}
+
 export interface ClinePromptOutcome {
   status: "completed" | "aborted" | "failed";
   text?: string;
@@ -89,6 +96,14 @@ export class ClineAdapterRuntime implements AdapterRuntime {
       outcome = await session.prompt(request.input);
     } catch (error) {
       await this.invalidate(session);
+      if (error instanceof ClinePromptError) {
+        return {
+          status: "failed",
+          output: null,
+          usage: error.usage,
+          error: { code: error.code, message: error.message, retryable: error.retryable },
+        };
+      }
       if (error instanceof LifecycleError) {
         throw error;
       }

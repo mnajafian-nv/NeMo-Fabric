@@ -108,3 +108,13 @@ node --test adapters/typescript/cline/test/native-health.mjs
 ```
 
 Refer to the [SDK health-check overview](../../../docs/sdk/health-checks.mdx) for shared behavior and a comparison of native evidence across adapters.
+
+## Token usage
+
+Cline 0.0.83 exposes usage for logical model calls. Its SDK can fill missing counts with zero and retry inside a logical call. These reports do not prove that every provider request supplied usage.
+
+The adapter saves available positive counts in `RunResult.usage.metadata["nvidia.fabric.cline.usage_evidence.v1"]`. The `observed` object contains input, output, cache-read, cache-write, and reasoning counts when available. Cache and reasoning counts are separate observations. The adapter does not add them to input or output or use them to reconstruct a missing total. Each observed counter can cover different calls. The SDK does not distinguish a provider-reported zero from a filled zero, so zero values remain unknown. The `gaps` list records unverified request coverage, missing usage, or unfinished work.
+
+Observations belong to one NeMo Fabric invocation and remain available when Cline returns an error after reporting usage. A process crash or a timeout that stops the adapter can lose these observations. Late reports cannot change a returned result or enter a later invocation. Complete token totals and provider-reported cost remain unset because these SDK reports do not establish their coverage or pricing source.
+
+Harbor retains these observations in `context.metadata.fabric.usage.metadata`. Its complete comparison counters remain `null`. This improves accounting evidence but does not satisfy a benchmark check that requires complete token totals.

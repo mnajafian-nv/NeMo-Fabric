@@ -65,6 +65,60 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
+        "nvidia.fabric.cline.usage_evidence.v1": {
+          "type": "object",
+          "properties": {
+            "observed": {
+              "type": "object",
+              "properties": {
+                "input_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "output_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "cached_input_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "cache_write_input_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "reasoning_tokens": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            "gaps": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "scope_unverified",
+                  "missing_usage",
+                  "unfinished_work"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "observed",
+            "gaps"
+          ],
+          "additionalProperties": false
+        },
         "cache_read_tokens": {"type": "integer", "minimum": 0},
         "cache_write_tokens": {"type": "integer", "minimum": 0}
       },

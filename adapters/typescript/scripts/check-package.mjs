@@ -45,6 +45,8 @@ const expectedByPackage = {
     "dist/cline-sdk.js",
     "dist/runtime.d.ts",
     "dist/runtime.js",
+    "dist/usage.d.ts",
+    "dist/usage.js",
     "package.json",
   ],
   "nemo-fabric-adapters-droid": [
